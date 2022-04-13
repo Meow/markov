@@ -15,12 +15,23 @@ use std::path::PathBuf;
 fn should_respond(str: &str) -> bool {
     let contents = str.to_lowercase();
 
-    contents.contains("luna")
-        && (contents.contains("what")
+    (contents.contains("luna") || contents.contains("луна"))
+        && (contents.contains('?')
+            || contents.contains("what")
+            || contents.contains("is")
+            || contents.contains("are you")
             || contents.contains("tell")
             || contents.contains("say")
             || contents.contains("thought")
-            || contents.contains("opinion"))
+            || contents.contains("opinion")
+            || contents.contains("как")
+            || contents.contains("дума")
+            || contents.contains("скаж")
+            || contents.contains("что")
+            || contents.contains("почему")
+            || contents.contains("зачем")
+            || contents.contains("мнение")
+            || contents.contains("мысл"))
 }
 
 fn pick_word(vec: &[String]) -> Option<&String> {
@@ -148,8 +159,6 @@ impl EventHandler for Handler {
             if words.len() < 2 {
                 return;
             }
-
-            println!("Recording words from message: {}", msg.content);
 
             let first_word = words.first().unwrap();
             let mut first_words = get_vec_or_empty(&channel_db, String::from("__STARTING_WORDS__"));
