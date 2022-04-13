@@ -115,6 +115,13 @@ fn sanitize_word(word: String) -> String {
     word.replace(')', "").replace('(', "").replace('|', "")
 }
 
+fn sanitize_str(msg: String) -> String {
+    msg.replace("@everyone", "@\u{200B}everyone")
+        .replace("@here", "@\u{200B}here")
+        .replace('*', "\\*")
+        .replace('`', "\\`")
+}
+
 struct Handler {
     db: MicroKV,
 }
@@ -137,7 +144,7 @@ impl EventHandler for Handler {
                 return;
             }
 
-            let response = MessageBuilder::new().push_safe(sentence).build();
+            let response = MessageBuilder::new().push(sanitize_str(sentence)).build();
 
             if let Err(why) = msg.channel_id.say(&context.http, &response).await {
                 println!("Error sending message: {:?}", why);
