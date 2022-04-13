@@ -24,4 +24,4 @@ I think Luna should tell us something
 
 ### Todos
 
-I'll probably make it strip incomplete formatting from words (e.g. spoiler start/end such as `word||`). I dunno. This was a simple Rust exercise designed to be tested in production. ~~Don't test in production though.~~
+Maybe I'll make it more sane or something. I dunno. This was a simple Rust exercise designed to be tested in production. ~~Don't test in production though.~~

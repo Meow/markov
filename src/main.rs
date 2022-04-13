@@ -31,9 +31,16 @@ fn pick_word(vec: &[String]) -> Option<&String> {
     }
 }
 
+fn get_starting_words(db: &MicroKV) -> Vec<String> {
+    match db.get(String::from("__STARTING_WORDS__")) {
+        Ok(Some(word)) => word,
+        _ => vec![],
+    }
+}
+
 fn build_sentence(db: &MicroKV, words: &[String]) -> String {
     let mut i = 0;
-    let mut sentence = String::from("");
+    let mut sentence: String = String::from("");
     let mut cur_next = words.to_owned();
 
     while let Some(word) = pick_word(&cur_next) {
@@ -52,9 +59,15 @@ fn build_sentence(db: &MicroKV, words: &[String]) -> String {
         i += 1;
     }
 
-    sentence = String::from(sentence.to_string().trim());
+    sentence = sentence.trim().to_string();
 
-    if !sentence.ends_with('.') {
+    if sentence.ends_with(',') {
+        sentence.push(' ');
+        sentence.push_str(&build_sentence(db, &get_starting_words(db)));
+        sentence = sentence.trim().to_string();
+    }
+
+    if !sentence.ends_with('.') && !sentence.ends_with('?') && !sentence.ends_with('!') {
         sentence.push('.');
     }
 
@@ -82,6 +95,10 @@ fn get_vec_or_empty(db: &MicroKV, key: String) -> Vec<String> {
     }
 }
 
+fn sanitize_word(word: String) -> String {
+    word.replace(')', "").replace('(', "").replace('|', "")
+}
+
 struct Handler {
     db: MicroKV,
 }
@@ -94,12 +111,8 @@ impl EventHandler for Handler {
         }
 
         if should_respond(&msg.content) {
-            let word: Vec<String> = match self.db.get(String::from("__STARTING_WORDS__")) {
-                Ok(Some(word)) => word,
-                _ => return,
-            };
-
-            let sentence = build_sentence(&self.db, &word);
+            let words: Vec<String> = get_starting_words(&self.db);
+            let sentence = build_sentence(&self.db, &words);
             let response = MessageBuilder::new().push_safe(sentence).build();
 
             if let Err(why) = msg.channel_id.say(&context.http, &response).await {
@@ -148,7 +161,7 @@ impl EventHandler for Handler {
                     next_words.remove(0);
                 }
 
-                next_words.push(next_word.to_string());
+                next_words.push(sanitize_word(next_word.to_string()));
 
                 if self.db.put(word, &next_words).is_err() {
                     return;
