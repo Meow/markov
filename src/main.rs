@@ -1,5 +1,6 @@
 use std::env;
 
+use microkv::namespace::NamespaceMicrokv;
 use microkv::MicroKV;
 use rand::seq::SliceRandom;
 use rand::Rng;
@@ -31,14 +32,18 @@ fn pick_word(vec: &[String]) -> Option<&String> {
     }
 }
 
-fn get_starting_words(db: &MicroKV) -> Vec<String> {
+fn get_starting_words(db: &NamespaceMicrokv) -> Vec<String> {
     match db.get(String::from("__STARTING_WORDS__")) {
         Ok(Some(word)) => word,
         _ => vec![],
     }
 }
 
-fn build_sentence(db: &MicroKV, words: &[String]) -> String {
+fn build_sentence(db: &NamespaceMicrokv, words: &[String], level: u8) -> String {
+    if level > 10 {
+        return String::from("");
+    }
+
     let mut i = 0;
     let mut sentence: String = String::from("");
     let mut cur_next = words.to_owned();
@@ -63,7 +68,7 @@ fn build_sentence(db: &MicroKV, words: &[String]) -> String {
 
     if sentence.ends_with(',') {
         sentence.push(' ');
-        sentence.push_str(&build_sentence(db, &get_starting_words(db)));
+        sentence.push_str(&build_sentence(db, &get_starting_words(db), level + 1));
         sentence = sentence.trim().to_string();
     }
 
@@ -72,7 +77,7 @@ fn build_sentence(db: &MicroKV, words: &[String]) -> String {
     }
 
     if sentence == "." {
-        sentence = build_sentence(db, words);
+        sentence = build_sentence(db, words, level + 1);
     }
 
     sentence
@@ -88,7 +93,7 @@ fn channel_blacklisted(name: &str) -> bool {
         || name == "lounge"
 }
 
-fn get_vec_or_empty(db: &MicroKV, key: String) -> Vec<String> {
+fn get_vec_or_empty(db: &NamespaceMicrokv, key: String) -> Vec<String> {
     match db.get(key) {
         Ok(Some(words)) => words,
         _ => vec![],
@@ -110,9 +115,17 @@ impl EventHandler for Handler {
             return;
         }
 
+        let guild_id = msg.guild_id.unwrap().as_u64().to_string();
+        let channel_db = self.db.namespace(guild_id);
+
         if should_respond(&msg.content) {
-            let words: Vec<String> = get_starting_words(&self.db);
-            let sentence = build_sentence(&self.db, &words);
+            let words: Vec<String> = get_starting_words(&channel_db);
+            let sentence = build_sentence(&channel_db, &words, 0);
+
+            if sentence.is_empty() || sentence == "." {
+                return;
+            }
+
             let response = MessageBuilder::new().push_safe(sentence).build();
 
             if let Err(why) = msg.channel_id.say(&context.http, &response).await {
@@ -139,13 +152,12 @@ impl EventHandler for Handler {
             println!("Recording words from message: {}", msg.content);
 
             let first_word = words.first().unwrap();
-            let mut first_words = get_vec_or_empty(&self.db, String::from("__STARTING_WORDS__"));
+            let mut first_words = get_vec_or_empty(&channel_db, String::from("__STARTING_WORDS__"));
 
             first_words.push(first_word.to_string());
             first_words.dedup();
 
-            if self
-                .db
+            if channel_db
                 .put(String::from("__STARTING_WORDS__"), &first_words)
                 .is_err()
             {
@@ -155,7 +167,7 @@ impl EventHandler for Handler {
             for word_pairs in words.windows(2) {
                 let word = word_pairs.first().unwrap();
                 let next_word = word_pairs.last().unwrap();
-                let mut next_words = get_vec_or_empty(&self.db, word.to_string());
+                let mut next_words = get_vec_or_empty(&channel_db, word.to_string());
 
                 if next_words.len() >= 64 {
                     next_words.remove(0);
@@ -163,7 +175,7 @@ impl EventHandler for Handler {
 
                 next_words.push(sanitize_word(next_word.to_string()));
 
-                if self.db.put(word, &next_words).is_err() {
+                if channel_db.put(word, &next_words).is_err() {
                     return;
                 }
             }
