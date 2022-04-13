@@ -1,5 +1,3 @@
-use std::env;
-
 use microkv::namespace::NamespaceMicrokv;
 use microkv::MicroKV;
 use rand::seq::SliceRandom;
@@ -10,36 +8,40 @@ use serenity::{
     prelude::*,
     utils::MessageBuilder,
 };
+use std::env;
 use std::path::PathBuf;
 
 fn should_respond(str: &str) -> bool {
     let contents = str.to_lowercase();
 
     (contents.contains("luna") || contents.contains("луна"))
-        && (contents.contains('?')
-            || contents.contains("what")
-            || contents.contains("is")
-            || contents.contains("are you")
-            || contents.contains("tell")
-            || contents.contains("say")
-            || contents.contains("thought")
-            || contents.contains("opinion")
-            || contents.contains("как")
-            || contents.contains("дума")
-            || contents.contains("скаж")
-            || contents.contains("что")
-            || contents.contains("почему")
-            || contents.contains("зачем")
-            || contents.contains("мнение")
-            || contents.contains("мысл"))
+        && [
+            "?",
+            "what",
+            "is",
+            "are you",
+            "tell",
+            "say",
+            "thought",
+            "как",
+            "дума",
+            "скаж",
+            "что",
+            "почему",
+            "зачем",
+            "мнение",
+            "мысл",
+        ]
+        .into_iter()
+        .any(|needle| contents.contains(needle))
 }
 
 fn pick_word(vec: &[String]) -> Option<&String> {
-    let rn: u64 = rand::thread_rng().gen();
+    let mut thread_rng = rand::thread_rng();
 
-    match rn % 10 {
-        0 => None,
-        _ => vec.choose(&mut rand::thread_rng()),
+    match thread_rng.gen_range(0..10) != 0 {
+        false => None,
+        _ => vec.choose(&mut thread_rng),
     }
 }
 
@@ -112,7 +114,7 @@ fn get_vec_or_empty(db: &NamespaceMicrokv, key: String) -> Vec<String> {
 }
 
 fn sanitize_word(word: String) -> String {
-    word.replace(')', "").replace('(', "").replace('|', "")
+    word.replace(&[')', '(', '|', '"'], "")
 }
 
 fn sanitize_str(msg: String) -> String {
