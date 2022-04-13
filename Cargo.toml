@@ -1,0 +1,12 @@
+[package]
+name = "markov"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+microkv = "0.2.8"
+serenity = { version = "0.10", default-features = false, features = ["client", "gateway", "rustls_backend", "model"] }
+rand = "0.8.5"
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
