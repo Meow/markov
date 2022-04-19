@@ -6,7 +6,6 @@ use serenity::{
     async_trait,
     model::{channel::Message, gateway::Ready},
     prelude::*,
-    utils::MessageBuilder,
 };
 use std::env;
 use std::path::PathBuf;
@@ -36,10 +35,14 @@ fn should_respond(str: &str) -> bool {
         .any(|needle| contents.contains(needle))
 }
 
-fn pick_word(vec: &[String]) -> Option<&String> {
+fn pick_word(word: String, vec: &[String]) -> Option<&String> {
     let mut thread_rng = rand::thread_rng();
+    let guaranteed_pick = match word.to_lowercase().as_str() {
+        "i'm" | "the" | "a" | "i" | "to" | "for" => true,
+        _ => false,
+    };
 
-    match thread_rng.gen_range(0..10) != 0 {
+    match guaranteed_pick || thread_rng.gen_range(0..10) != 0 {
         false => None,
         _ => vec.choose(&mut thread_rng),
     }
@@ -60,11 +63,14 @@ fn build_sentence(db: &NamespaceMicrokv, words: &[String], level: u8) -> String 
     let mut i = 0;
     let mut sentence: String = String::from("");
     let mut cur_next = words.to_owned();
+    let mut last_word = String::from("");
 
-    while let Some(word) = pick_word(&cur_next) {
+    while let Some(word) = pick_word(last_word, &cur_next) {
         if i >= 48 {
             break;
         }
+
+        last_word = word.to_string();
 
         sentence.push_str(word);
         sentence.push(' ');
@@ -85,8 +91,12 @@ fn build_sentence(db: &NamespaceMicrokv, words: &[String], level: u8) -> String 
         sentence = sentence.trim().to_string();
     }
 
-    if !sentence.ends_with('.') && !sentence.ends_with('?') && !sentence.ends_with('!') {
-        sentence.push('.');
+    if !sentence.ends_with(&['.', '?', '!']) {
+        if sentence.ends_with("what") || sentence.ends_with("why") || sentence.ends_with("who") {
+            sentence.push('?');
+        } else {
+            sentence.push('.');
+        }
     }
 
     if sentence == "." {
@@ -146,9 +156,9 @@ impl EventHandler for Handler {
                 return;
             }
 
-            let response = MessageBuilder::new().push(sanitize_str(sentence)).build();
-
-            if let Err(why) = msg.channel_id.say(&context.http, &response).await {
+            if let Err(why) = msg.channel_id.send_message(&context.http, |m| {
+                m.allowed_mentions(|am| am.empty_parse()).content(sanitize_str(sentence))
+            }).await {
                 println!("Error sending message: {:?}", why);
             }
         } else {
