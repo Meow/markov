@@ -1,9 +1,10 @@
 use microkv::namespace::NamespaceMicrokv;
 use microkv::MicroKV;
-use rand::seq::SliceRandom;
+use rand::prelude::IndexedRandom;
 use rand::Rng;
 use serenity::{
     async_trait,
+    builder::{CreateAllowedMentions, CreateMessage},
     model::{channel::Message, gateway::Ready},
     prelude::*,
 };
@@ -36,15 +37,15 @@ fn should_respond(str: &str) -> bool {
 }
 
 fn pick_word(word: String, vec: &[String]) -> Option<&String> {
-    let mut thread_rng = rand::thread_rng();
-    let guaranteed_pick = match word.to_lowercase().as_str() {
-        "i'm" | "the" | "a" | "i" | "to" | "for" => true,
-        _ => false,
-    };
+    let mut rng = rand::rng();
+    let guaranteed_pick = matches!(
+        word.to_lowercase().as_str(),
+        "i'm" | "the" | "a" | "i" | "to" | "for"
+    );
 
-    match guaranteed_pick || thread_rng.gen_range(0..10) != 0 {
+    match guaranteed_pick || rng.random_range(0..10) != 0 {
         false => None,
-        _ => vec.choose(&mut thread_rng),
+        _ => vec.choose(&mut rng),
     }
 }
 
@@ -91,7 +92,7 @@ fn build_sentence(db: &NamespaceMicrokv, words: &[String], level: u8) -> String 
         sentence = sentence.trim().to_string();
     }
 
-    if !sentence.ends_with(&['.', '?', '!']) {
+    if !sentence.ends_with(['.', '?', '!']) {
         if sentence.ends_with("what") || sentence.ends_with("why") || sentence.ends_with("who") {
             sentence.push('?');
         } else {
@@ -124,7 +125,7 @@ fn get_vec_or_empty(db: &NamespaceMicrokv, key: String) -> Vec<String> {
 }
 
 fn sanitize_word(word: String) -> String {
-    word.replace(&[')', '(', '|', '"'], "")
+    word.replace([')', '(', '|', '"'], "")
 }
 
 fn sanitize_str(msg: String) -> String {
@@ -145,7 +146,7 @@ impl EventHandler for Handler {
             return;
         }
 
-        let guild_id = msg.guild_id.unwrap().as_u64().to_string();
+        let guild_id = msg.guild_id.unwrap().get().to_string();
         let channel_db = self.db.namespace(guild_id);
 
         if should_respond(&msg.content) {
@@ -156,9 +157,15 @@ impl EventHandler for Handler {
                 return;
             }
 
-            if let Err(why) = msg.channel_id.send_message(&context.http, |m| {
-                m.allowed_mentions(|am| am.empty_parse()).content(sanitize_str(sentence))
-            }).await {
+            let allowed_mentions = CreateAllowedMentions::default()
+                .all_roles(false)
+                .all_users(false)
+                .everyone(false);
+            let builder = CreateMessage::new()
+                .allowed_mentions(allowed_mentions)
+                .content(sanitize_str(sentence));
+
+            if let Err(why) = msg.channel_id.send_message(&context.http, builder).await {
                 println!("Error sending message: {:?}", why);
             }
         } else {
@@ -226,10 +233,13 @@ async fn main() {
 
     let handler = Handler { db };
 
-    let mut client = Client::builder(&token)
-        .event_handler(handler)
-        .await
-        .expect("Err creating client");
+    let mut client = Client::builder(
+        &token,
+        GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT,
+    )
+    .event_handler(handler)
+    .await
+    .expect("Err creating client");
 
     if let Err(why) = client.start().await {
         println!("Client error: {:?}", why);
