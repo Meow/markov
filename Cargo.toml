@@ -1,6 +1,6 @@
 [package]
 name = "markov"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -10,3 +10,8 @@ microkv = "0.2.9"
 serenity = { version = "0.12.4", default-features = false, features = ["client", "gateway", "rustls_backend", "model"] }
 rand = "0.9.2"
 tokio = { version = "1.48.0", features = ["macros", "rt-multi-thread"] }
+
+[profile.release]
+lto = true
+strip = "debuginfo"
+opt-level = 3
