@@ -1,7 +1,7 @@
-use microkv::namespace::NamespaceMicrokv;
 use microkv::MicroKV;
-use rand::prelude::IndexedRandom;
+use microkv::namespace::NamespaceMicrokv;
 use rand::Rng;
+use rand::prelude::IndexedRandom;
 use serenity::{
     async_trait,
     builder::{CreateAllowedMentions, CreateMessage},
